@@ -75,6 +75,37 @@ function ProjectCard({ p, src }) {
   )
 }
 
+// Film card — 3D tilt + play affordance
+function FilmCard({ f, src, href }) {
+  const ref = useTilt()
+  return (
+    <a href={href} className="film" data-reveal target="_blank" rel="noopener">
+      <div ref={ref} className="film-media">
+        <Img src={src} alt={f.title} ratio="4 / 5" />
+        <div className="film-scrim" />
+        <span className="film-play"><Play size={22} fill="currentColor" strokeWidth={0} /></span>
+        <div className="film-cap"><h3>{f.title}</h3><span>{f.couple} · <i>{f.place}</i></span></div>
+      </div>
+    </a>
+  )
+}
+
+// Pricing card — subtle 3D tilt
+function PriceCard({ pk }) {
+  const ref = useTilt()
+  return (
+    <div ref={ref} className={`price-card${pk.badge ? ' feat' : ''}`} data-reveal>
+      {pk.badge && <span className="price-badge">{pk.badge}</span>}
+      <span className="price-name">{pk.name}</span>
+      <div className="price-amt">{pk.price}</div>
+      <span className="price-unit">{pk.unit ? `for ${pk.unit}` : ''}</span>
+      <ul className="price-feats">
+        {(pk.features || []).map((f, j) => (<li key={j}><Check size={16} strokeWidth={2} />{f}</li>))}
+      </ul>
+    </div>
+  )
+}
+
 // ── Magnetic button (desktop) ─────────────────────────────────────────────────
 function Magnetic({ children, className, href }) {
   const ref = useRef(null)
@@ -167,6 +198,37 @@ export default function App() {
     return () => io.disconnect()
   }, [])
 
+  // hero parallax + scroll-progress bar (rAF-batched, one scroll listener)
+  useEffect(() => {
+    if (prefersReduced()) return
+    const media = document.querySelector('.hero-media')
+    const bar = document.querySelector('.scroll-prog i')
+    let raf = 0
+    const tick = () => {
+      raf = 0
+      const y = window.scrollY
+      if (media && y < window.innerHeight * 1.2) media.style.transform = `translate3d(0, ${(y * 0.28).toFixed(1)}px, 0)`
+      if (bar) { const h = document.documentElement.scrollHeight - window.innerHeight; bar.style.transform = `scaleX(${h > 0 ? Math.min(1, y / h) : 0})` }
+    }
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(tick) }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    tick()
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // cursor-follow gold glow on the dark bands (desktop only)
+  useEffect(() => {
+    if (!canHover() || prefersReduced()) return
+    const secs = [...document.querySelectorAll('.films, .quotes, .cta')]
+    const onMove = (e) => {
+      const el = e.currentTarget, r = el.getBoundingClientRect()
+      el.style.setProperty('--mx', `${(((e.clientX - r.left) / r.width) * 100).toFixed(1)}%`)
+      el.style.setProperty('--my', `${(((e.clientY - r.top) / r.height) * 100).toFixed(1)}%`)
+    }
+    secs.forEach((s) => s.addEventListener('mousemove', onMove))
+    return () => secs.forEach((s) => s.removeEventListener('mousemove', onMove))
+  }, [])
+
   const nav = [['work', 'Portfolio'], ['films', 'Films'], ['services', 'What We Shoot'], ['pricing', 'Investment'], ['contact', 'Contact']]
   const services = d.services || []
   const projects = (d.projects || []).slice(0, PROJECT_IMGS.length)
@@ -174,6 +236,7 @@ export default function App() {
 
   return (
     <div className={`site${loaded ? ' loaded' : ''}`}>
+      <div className="scroll-prog" aria-hidden="true"><i /></div>
       {/* ── Header ── */}
       <header className={`nav${scrolled ? ' scrolled' : ''}`}>
         <div className="wrap nav-in">
@@ -285,14 +348,7 @@ export default function App() {
               <h2 data-reveal>Relive the day, don’t just look back</h2>
             </div>
             <div className="films-grid">
-              {d.films.map((f, i) => (
-                <a key={i} href={wa} className="film" data-reveal target="_blank" rel="noopener">
-                  <Img src={FILM_IMGS[i % FILM_IMGS.length]} alt={f.title} ratio="4 / 5" />
-                  <div className="film-scrim" />
-                  <span className="film-play"><Play size={22} fill="currentColor" strokeWidth={0} /></span>
-                  <div className="film-cap"><h3>{f.title}</h3><span>{f.couple} · <i>{f.place}</i></span></div>
-                </a>
-              ))}
+              {d.films.map((f, i) => (<FilmCard key={i} f={f} src={FILM_IMGS[i % FILM_IMGS.length]} href={wa} />))}
             </div>
           </div>
         </section>
@@ -345,17 +401,7 @@ export default function App() {
               <h2 data-reveal>Packages that flex to your wedding</h2>
             </div>
             <div className="price-grid">
-              {packages.map((pk, i) => (
-                <div className={`price-card${pk.badge ? ' feat' : ''}`} key={i} data-reveal>
-                  {pk.badge && <span className="price-badge">{pk.badge}</span>}
-                  <span className="price-name">{pk.name}</span>
-                  <div className="price-amt">{pk.price}</div>
-                  <span className="price-unit">{pk.unit ? `for ${pk.unit}` : ''}</span>
-                  <ul className="price-feats">
-                    {(pk.features || []).map((f, j) => (<li key={j}><Check size={16} strokeWidth={2} />{f}</li>))}
-                  </ul>
-                </div>
-              ))}
+              {packages.map((pk, i) => (<PriceCard key={i} pk={pk} />))}
             </div>
             {d.pricing?.note && <p className="price-note" data-reveal>{d.pricing.note}</p>}
             <div className="price-note-cta" data-reveal><a href={wa} className="btn btn-solid" target="_blank" rel="noopener">Request a bespoke quote</a></div>
